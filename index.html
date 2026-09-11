@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Color Magic Lab 3D - ESL Color Mixing Game</title>
+  <meta name="description" content="3D interactive ESL game for children learning color mixing, based on ALICE ESL Vocabulary V3 with Single Player & 2-Player WebCam TPR Motion Control.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Three.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Canvas Confetti for Celebration -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- MediaPipe Hands & Camera Utils for Webcam Motion -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <!-- Mirrored WebCam Background for 2-Player Co-op -->
+  <video id="webcam-video" autoplay playsinline muted></video>
+  <!-- Hand motion pointer visual overlay layer -->
+  <canvas id="hands-canvas"></canvas>
+
+  <!-- 3D Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Game UI Layer -->
+  <div id="ui-container">
+    <!-- Top Bar -->
+    <header id="top-bar">
+      <div class="hud-left">
+        <div class="hud-item badge-theme">
+          <span class="hud-icon">🎨</span>
+          <span class="hud-title">V3 Color Magic Lab</span>
+        </div>
+        <!-- Mode indicator pill -->
+        <div class="hud-item mode-pill" id="mode-badge">
+          <span id="mode-label">Solo Mode</span>
+        </div>
+        <!-- Audio Settings Controls: Speed & Subtitles -->
+        <div class="settings-group">
+          <button class="setting-pill" id="btn-speed-toggle" title="Change Speech Speed">
+            <span class="pill-icon">⚡</span>
+            <span id="speed-label">1.0x</span>
+          </button>
+          <button class="setting-pill" id="btn-sub-toggle" title="Toggle Subtitles: English / Bilingual / Off">
+            <span class="pill-icon">💬</span>
+            <span id="sub-mode-label">EN + 中文</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="hud-center">
+        <!-- Timer & Leaderboard Trigger -->
+        <div class="timer-badge" id="timer-box">
+          <span class="timer-icon">⏱️</span>
+          <span id="timer-display">00:00</span>
+        </div>
+        <div class="progress-container">
+          <span id="level-indicator">Level 1/6</span>
+          <div class="progress-bar-bg">
+            <div id="progress-bar-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud-right">
+        <div class="hud-item score-pill">
+          <span class="hud-icon">⭐</span>
+          <span id="score-text">0</span>
+        </div>
+        <button class="setting-pill rank-btn" id="btn-show-ranks" title="Hall of Fame / Leaderboard">
+          <span>🏆 Rank</span>
+        </button>
+        <button class="setting-pill home-btn" id="btn-back-menu" title="Return to Main Menu">
+          <span>🏠 Menu</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Mission & Speech Banner -->
+    <div id="mission-card">
+      <div class="speaker-btn" id="btn-replay-audio" title="Click to hear again">
+        <span class="sound-wave">🔊</span>
+      </div>
+      <div class="mission-text-wrap">
+        <div class="mission-hint" id="mission-subtitle">Mix two magic colors!</div>
+        <div class="mission-formula" id="mission-formula">
+          <span class="slot slot-1" id="slot-1">?</span>
+          <span class="operator">+</span>
+          <span class="slot slot-2" id="slot-2">?</span>
+          <span class="operator">=</span>
+          <span class="slot slot-target" id="slot-target">PURPLE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Subtitle Box (Bilingual / English / Hidden) -->
+    <div id="subtitle-box" class="subtitle-container">
+      <div class="sub-bubble">
+        <div class="sub-en" id="sub-en">Welcome to the Magic Laboratory! Let's mix colors!</div>
+        <div class="sub-zh" id="sub-zh">歡迎來到魔法實驗室！我們一起來調配顏色吧！</div>
+      </div>
+    </div>
+
+    <!-- 2-Player Co-op Color Docks (Split Screen: Left & Right) -->
+    <div id="coop-dock" class="coop-dock-container hidden">
+      <!-- Player 1 (Left Side) -->
+      <div class="coop-player-column player-1-column" id="p1-dock">
+        <div class="player-tag p1-tag">
+          <span class="p-avatar">🧙‍♂️</span>
+          <span class="p-title">Player 1 (Left)</span>
+          <span class="p-status" id="p1-status">✋ Palm: Aim / Open to Cancel · ✊ Fist: Grab</span>
+        </div>
+        <div class="coop-color-grid" id="p1-buttons">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Player 2 (Right Side) -->
+      <div class="coop-player-column player-2-column" id="p2-dock">
+        <div class="player-tag p2-tag">
+          <span class="p-avatar">🧙‍♀️</span>
+          <span class="p-title">Player 2 (Right)</span>
+          <span class="p-status" id="p2-status">✋ Palm: Aim / Open to Cancel · ✊ Fist: Grab</span>
+        </div>
+        <div class="coop-color-grid" id="p2-buttons">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Solo Palette Dock (Center bottom, for Solo Mode) -->
+    <div id="palette-dock">
+      <div class="dock-label">Tap or click paint bottles into the Cauldron:</div>
+      <div class="color-buttons" id="color-buttons">
+        <!-- Generated dynamically in JS -->
+      </div>
+    </div>
+
+    <!-- Bottom Tool Controls (Solo Mode) -->
+    <footer id="bottom-controls">
+      <button class="tool-btn" id="btn-clear" title="Clear Cauldron">
+        🔄 Clear
+      </button>
+      <button class="tool-btn" id="btn-stir" title="Stir & Mix">
+        ✨ Stir & Mix!
+      </button>
+      <button class="tool-btn" id="btn-speak-sentence" title="Say it out loud!">
+        🗣️ Read Sentence
+      </button>
+    </footer>
+  </div>
+
+  <!-- Start Overlay Screen: Choose Solo vs 2-Player Co-op & Rounds -->
+  <div id="start-overlay" class="modal-overlay active">
+    <div class="modal-card start-card">
+      <div class="modal-mascot">🧪✨</div>
+      <h1 class="modal-title">Color Magic Lab 3D</h1>
+      <p class="modal-desc">
+        ALICE ESL Vocabulary V3 · Lesson 3: Mixing Colors<br>
+        Choose your game mode and mission rounds to begin!
+      </p>
+
+      <!-- Mode Selector Tabs -->
+      <div class="mode-select-row">
+        <button class="mode-tab active" id="tab-solo">
+          <span class="tab-emoji">👤</span>
+          <div class="tab-text">
+            <strong>Solo Adventure</strong>
+            <small>Mouse / Touch Click</small>
+          </div>
+        </button>
+        <button class="mode-tab" id="tab-coop">
+          <span class="tab-emoji">👥</span>
+          <div class="tab-text">
+            <strong>2-Player Co-op</strong>
+            <small>WebCam Hand Motion</small>
+          </div>
+        </button>
+      </div>
+
+      <!-- Config Options: Mission Count Selector -->
+      <div class="config-section">
+        <label for="round-select">🎯 Challenge Questions (Randomized):</label>
+        <div class="round-pills">
+          <button class="pill-option active" data-rounds="4">4 Rounds</button>
+          <button class="pill-option" data-rounds="6">6 Rounds</button>
+          <button class="pill-option" data-rounds="8">8 Rounds</button>
+        </div>
+      </div>
+
+      <div class="coop-hint-box hidden" id="coop-camera-note">
+        📹 <strong>雙人視訊體感玩法</strong>：兩人分別站在螢幕左邊 (P1) 與右邊 (P2)。<strong>「張開手 ✋」</strong>用<strong>手掌心</strong>移動瞄準；移到色球後<strong>「握拳 ✊」</strong>即可吸附抓取。若選錯只要<strong>「張開手掌放開」</strong>立即取消抓取！確認後拖曳至<strong>中間大坩堝</strong>放開即可混色。
+      </div>
+
+      <button class="btn-primary" id="btn-start-game">
+        ▶ Start Magic Game!
+      </button>
+    </div>
+  </div>
+
+  <!-- Victory Level Screen -->
+  <div id="victory-overlay" class="modal-overlay">
+    <div class="modal-card victory-card">
+      <div class="modal-mascot">🏆🎉</div>
+      <h2 class="modal-title" id="victory-title">Fantastic!</h2>
+      <p class="modal-desc" id="victory-sentence">
+        "Red and blue make purple."
+      </p>
+      <div class="stars-awarded" id="stars-row">⭐⭐⭐</div>
+      <button class="btn-primary" id="btn-next-level">
+        Next Magic Formula ➔
+      </button>
+    </div>
+  </div>
+
+  <!-- All Complete Screen (with Leaderboard submission) -->
+  <div id="complete-overlay" class="modal-overlay">
+    <div class="modal-card complete-card">
+      <div class="modal-mascot">👑🎨</div>
+      <h2 class="modal-title">Master Color Chemist!</h2>
+      <p class="modal-desc">
+        You successfully cleared all magic formulas!
+      </p>
+      <div class="stats-summary">
+        <div class="stat-box">
+          <span class="stat-label">Total Time</span>
+          <span class="stat-val" id="final-time-text">01:23</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Final Score</span>
+          <span class="stat-val" id="final-score-text">600 pts</span>
+        </div>
+      </div>
+
+      <!-- Name Input for Ranking -->
+      <div class="name-entry-wrap">
+        <input type="text" id="player-name-input" placeholder="Enter Player / Team Name" maxlength="15">
+        <button class="btn-secondary" id="btn-save-score">💾 Save Rank</button>
+      </div>
+
+      <div class="complete-actions">
+        <button class="btn-primary" id="btn-restart-game">🔄 Play Again</button>
+        <button class="tool-btn" id="btn-view-ranks-complete">🏆 View Leaderboard</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard Modal -->
+  <div id="rank-overlay" class="modal-overlay">
+    <div class="modal-card rank-card">
+      <div class="rank-header">
+        <span class="rank-icon">🏆</span>
+        <h2>Hall of Fame (Leaderboard)</h2>
+      </div>
+      <div class="rank-tabs">
+        <button class="rank-tab-btn active" id="tab-rank-solo">Solo Highscores</button>
+        <button class="rank-tab-btn" id="tab-rank-coop">2-Player Teams</button>
+      </div>
+      <div class="rank-list-wrap">
+        <table class="rank-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Name</th>
+              <th>Score</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="rank-table-body">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+      <button class="btn-primary" id="btn-close-ranks" style="margin-top: 18px;">
+        ✕ Close
+      </button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
